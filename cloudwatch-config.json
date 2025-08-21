@@ -1,0 +1,220 @@
+{
+  "cloudwatch-dashboards": {
+    "PortTrack-Operations": {
+      "widgets": [
+        {
+          "type": "metric",
+          "properties": {
+            "metrics": [
+              ["AWS/ApplicationELB", "RequestCount", "LoadBalancer", "porttrack-alb"],
+              [".", "TargetResponseTime", ".", "."],
+              [".", "HTTPCode_Target_4XX_Count", ".", "."],
+              [".", "HTTPCode_Target_5XX_Count", ".", "."]
+            ],
+            "period": 300,
+            "stat": "Sum",
+            "region": "us-east-1",
+            "title": "ALB Metrics"
+          }
+        },
+        {
+          "type": "metric", 
+          "properties": {
+            "metrics": [
+              ["AWS/EC2", "CPUUtilization", "AutoScalingGroupName", "porttrack-asg"],
+              [".", "NetworkIn", ".", "."],
+              [".", "NetworkOut", ".", "."]
+            ],
+            "period": 300,
+            "stat": "Average",
+            "region": "us-east-1",
+            "title": "EC2 Instance Metrics"
+          }
+        },
+        {
+          "type": "log",
+          "properties": {
+            "query": "SOURCE '/aws/ec2/porttrack'\n| fields @timestamp, @message\n| filter @message like /ERROR/\n| sort @timestamp desc\n| limit 20",
+            "region": "us-east-1",
+            "title": "Recent Errors",
+            "view": "table"
+          }
+        }
+      ]
+    }
+  },
+  
+  "cloudwatch-alarms": [
+    {
+      "AlarmName": "PortTrack-HighErrorRate",
+      "AlarmDescription": "PortTrack error rate above 5%",
+      "MetricName": "HTTPCode_Target_5XX_Count",
+      "Namespace": "AWS/ApplicationELB",
+      "Statistic": "Sum",
+      "Period": 300,
+      "EvaluationPeriods": 2,
+      "Threshold": 10,
+      "ComparisonOperator": "GreaterThanThreshold",
+      "AlarmActions": [
+        "arn:aws:sns:us-east-1:123456789:porttrack-alerts"
+      ]
+    },
+    {
+      "AlarmName": "PortTrack-HighLatency", 
+      "AlarmDescription": "PortTrack response time above 3 seconds",
+      "MetricName": "TargetResponseTime",
+      "Namespace": "AWS/ApplicationELB", 
+      "Statistic": "Average",
+      "Period": 300,
+      "EvaluationPeriods": 2,
+      "Threshold": 3.0,
+      "ComparisonOperator": "GreaterThanThreshold",
+      "AlarmActions": [
+        "arn:aws:sns:us-east-1:123456789:porttrack-alerts"
+      ]
+    },
+    {
+      "AlarmName": "PortTrack-HighCPU",
+      "AlarmDescription": "PortTrack CPU utilization above 80%",
+      "MetricName": "CPUUtilization",
+      "Namespace": "AWS/EC2",
+      "Statistic": "Average", 
+      "Period": 300,
+      "EvaluationPeriods": 2,
+      "Threshold": 80,
+      "ComparisonOperator": "GreaterThanThreshold",
+      "Dimensions": [
+        {
+          "Name": "AutoScalingGroupName",
+          "Value": "porttrack-asg"
+        }
+      ]
+    },
+    {
+      "AlarmName": "PortTrack-LowShipProcessing",
+      "AlarmDescription": "No ships processed in last 2 hours - Business metric",
+      "MetricName": "ShipsProcessed",
+      "Namespace": "PortTrack/Business",
+      "Statistic": "Sum",
+      "Period": 7200,
+      "EvaluationPeriods": 1,
+      "Threshold": 1,
+      "ComparisonOperator": "LessThanThreshold",
+      "AlarmActions": [
+        "arn:aws:sns:us-east-1:123456789:porttrack-business-alerts"
+      ]
+    }
+  ],
+
+  "custom-metrics": {
+    "business-metrics": [
+      {
+        "MetricName": "ShipsProcessed",
+        "Namespace": "PortTrack/Business", 
+        "Value": 1,
+        "Unit": "Count",
+        "Dimensions": [
+          {
+            "Name": "Port",
+            "Value": "MainPort"
+          }
+        ]
+      },
+      {
+        "MetricName": "CargoOperations",
+        "Namespace": "PortTrack/Business",
+        "Value": 1,
+        "Unit": "Count"
+      },
+      {
+        "MetricName": "AverageProcessingTime", 
+        "Namespace": "PortTrack/Business",
+        "Value": 45,
+        "Unit": "Minutes"
+      }
+    ]
+  },
+
+  "log-groups": [
+    {
+      "logGroupName": "/aws/ec2/porttrack",
+      "retentionInDays": 30
+    },
+    {
+      "logGroupName": "/aws/codedeploy/porttrack",
+      "retentionInDays": 14
+    },
+    {
+      "logGroupName": "/aws/lambda/porttrack-monitor",
+      "retentionInDays": 7
+    }
+  ],
+
+  "cloudwatch-agent": {
+    "agent": {
+      "metrics_collection_interval": 60,
+      "run_as_user": "cwagent"
+    },
+    "logs": {
+      "logs_collected": {
+        "files": {
+          "collect_list": [
+            {
+              "file_path": "/var/log/porttrack-deploy.log",
+              "log_group_name": "/aws/ec2/porttrack",
+              "log_stream_name": "deployment"
+            },
+            {
+              "file_path": "/var/log/nginx/access.log", 
+              "log_group_name": "/aws/ec2/porttrack",
+              "log_stream_name": "nginx-access"
+            },
+            {
+              "file_path": "/var/log/nginx/error.log",
+              "log_group_name": "/aws/ec2/porttrack", 
+              "log_stream_name": "nginx-error"
+            }
+          ]
+        }
+      }
+    },
+    "metrics": {
+      "namespace": "PortTrack/System",
+      "metrics_collected": {
+        "cpu": {
+          "measurement": [
+            "cpu_usage_idle",
+            "cpu_usage_iowait", 
+            "cpu_usage_user",
+            "cpu_usage_system"
+          ],
+          "metrics_collection_interval": 60
+        },
+        "disk": {
+          "measurement": [
+            "used_percent"
+          ],
+          "metrics_collection_interval": 60,
+          "resources": [
+            "*"
+          ]
+        },
+        "diskio": {
+          "measurement": [
+            "io_time"
+          ],
+          "metrics_collection_interval": 60,
+          "resources": [
+            "*"
+          ]
+        },
+        "mem": {
+          "measurement": [
+            "mem_used_percent"
+          ],
+          "metrics_collection_interval": 60
+        }
+      }
+    }
+  }
+}

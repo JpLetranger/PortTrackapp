@@ -1,0 +1,20 @@
+FROM nginx:alpine
+
+# Copy static app
+COPY index.html /usr/share/nginx/html/
+
+# Simple nginx config for CloudWatch
+COPY nginx.conf /etc/nginx/nginx.conf
+
+# Health check endpoint
+RUN echo '{"status":"healthy","timestamp":"'$(date -Iseconds)'"}' > /usr/share/nginx/html/health
+
+# Install CloudWatch agent
+RUN apk add --no-cache curl
+
+EXPOSE 80
+
+HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
+  CMD curl -f http://localhost/health || exit 1
+
+CMD ["nginx", "-g", "daemon off;"]

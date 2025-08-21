@@ -1,0 +1,15 @@
+{
+    "name": "porttrack-hubot",
+    "version": "1.0.0",
+    "description": "ChatOps bot for PortTrack",
+    "main": "index.js",
+    "dependencies": {
+        "hubot": "^3.0.0",
+        "hubot-slack": "^4.0.0",
+        "aws-sdk": "^2.0.0",
+        "node-cron": "^3.0.0"
+    },
+    "scripts": {
+        "start": "./bin/hubot --adapter slack"
+    }
+}

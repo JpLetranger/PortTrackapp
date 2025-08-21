@@ -1,0 +1,66 @@
+# appspec.yml - AWS CodeDeploy Configuration
+version: 0.0
+os: linux
+files:
+  - source: /
+    destination: /var/www/porttrack
+    overwrite: yes
+permissions:
+  - object: /var/www/porttrack
+    owner: nginx
+    group: nginx
+    mode: 755
+hooks:
+  BeforeInstall:
+    - location: scripts/stop_server.sh
+      timeout: 300
+  ApplicationStart:
+    - location: scripts/start_server.sh
+      timeout: 300
+  ApplicationStop:
+    - location: scripts/stop_server.sh
+      timeout: 300
+  ValidateService:
+    - location: scripts/validate_service.sh
+      timeout: 300
+{
+  "deploymentConfigName": "PortTrackCanary10Percent",
+  "trafficRoutingConfig": {
+    "type": "TimeBasedCanary",
+    "timeBasedCanary": {
+      "canaryPercentage": 10,
+      "canaryInterval": 5
+    }
+  },
+  "autoRollbackConfiguration": {
+    "enabled": true,
+    "events": [
+      "DEPLOYMENT_FAILURE",
+      "DEPLOYMENT_STOP_ON_ALARM",
+      "DEPLOYMENT_STOP_ON_REQUEST"
+    ]
+  },
+  "alarmConfiguration": {
+    "enabled": true,
+    "alarms": [
+      {
+        "name": "PortTrack-HighErrorRate"
+      },
+      {
+        "name": "PortTrack-HighLatency"
+      }
+    ]
+  },
+  "blueGreenDeploymentConfiguration": {
+    "deploymentReadyOption": {
+      "actionOnTimeout": "CONTINUE_DEPLOYMENT"
+    },
+    "greenFleetProvisioningOption": {
+      "action": "COPY_AUTO_SCALING_GROUP"
+    },
+    "terminateBlueInstancesOnDeploymentSuccess": {
+      "action": "TERMINATE",
+      "terminationWaitTimeInMinutes": 15
+    }
+  }
+}
